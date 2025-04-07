@@ -14,12 +14,11 @@ for i in range(num_trials):
         action, _ = model.predict(obs, deterministic=True)
         if j % 100 == 0:
             print("action: ", [round(action[0], 2), round(action[1], 2)])
-        # action[1] = -1 * action[1]
         obs, reward, terminated, truncated, _ = env.step(action)
         done = terminated or truncated
         if reward == 1.0:
             caught = True
-            break
+            # break
     print(f"Trial {i+1}: {'Caught ✅' if caught else 'Missed ❌'}")
     success_count += int(caught)
 

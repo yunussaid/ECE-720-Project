@@ -30,7 +30,17 @@ class LearmArmEnv(gym.Env):
             high=np.array([1.57, 1.57]),
             dtype=np.float32
         )
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(6,), dtype=np.float32)     # Observations: 2 joint positions + 2 joint velocities + 2 ball coordinates
+        # self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(6,), dtype=np.float32)     # Observations: 2 joint positions + 2 joint velocities + 2 ball coordinates
+        # self.observation_space = spaces.Box(
+        #     low=np.array([-1.57, 0.0, -np.inf, -np.inf, -np.inf, -np.inf]),  # Base, shoulder positions; velocities remain unbounded
+        #     high=np.array([1.57, 1.57, np.inf, np.inf, np.inf, np.inf]),  # Base, shoulder positions; velocities unbounded
+        #     dtype=np.float32
+        # )
+        self.observation_space = spaces.Box(
+            low=np.array([-np.inf, -np.inf, -np.inf, -np.inf]),  # x-y coordinates for both net and ball
+            high=np.array([np.inf, np.inf, np.inf, np.inf]),
+            dtype=np.float32
+        )
 
         self.base_joint_idx = None
         self.shoulder_joint_idx = None
@@ -132,16 +142,8 @@ class LearmArmEnv(gym.Env):
         # Default reward is negative distance in x-y plane
         reward = -xy_dist  # Base reward based on x-y distance
 
-        # Additional reward for shoulder joint movement
-        shoulder_penalty = 0.1 * abs(target_shoulder_pos - curr_shoulder_pos)  # Penalize lack of movement
-        reward -= shoulder_penalty
-
-        # Vertical distance-based reward (encourage depth control)
-        if abs(ball_pos[2] - net_pos[2]) <= 0.1:
-            reward += 0.5  # Encouraging successful alignment in z
-
         # Success bonus for catching the ball
-        if abs(ball_pos[2] - net_pos[2]) <= 0.1 and xy_dist <= 0.55:
+        if xy_dist <= 0.55:  # Define a catch range in the x-y plane
             reward = 1.0  # Catch success
         
         # Return updated observation, reward, done flag, and truncated flag
@@ -152,16 +154,16 @@ class LearmArmEnv(gym.Env):
         return obs, reward, done, truncated, {}
     
     def _get_obs(self):
-        joint_base = pyB.getJointState(self.robot_id, self.base_joint_idx)
-        joint_shoulder = pyB.getJointState(self.robot_id, self.shoulder_joint_idx)
-
+        # Get the ball's position
         ball_pos = pyB.getBasePositionAndOrientation(self.ball_id)[0]
         noisy_ball_x = ball_pos[0] + np.random.normal(0, self.ball_noise_std)
         noisy_ball_y = ball_pos[1] + np.random.normal(0, self.ball_noise_std)
 
-        pos = [joint_base[0], joint_shoulder[0]]
-        vel = [joint_base[1], joint_shoulder[1]]
-        obs = np.array(pos + vel + [noisy_ball_x, noisy_ball_y], dtype=np.float32)
+        # Get the net's position
+        net_pos = pyB.getLinkState(self.robot_id, self.net_joint_idx)[0]
+
+        # Return the x and y coordinates of the ball and net (no joint positions or velocities)
+        obs = np.array([noisy_ball_x, noisy_ball_y, net_pos[0], net_pos[1]], dtype=np.float32)    
         return obs
 
     def _get_pybullet(self):
