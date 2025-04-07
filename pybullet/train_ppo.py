@@ -10,7 +10,7 @@ env = DummyVecEnv([lambda: LearmArmEnv(render=False)])
 check_env(LearmArmEnv(render=False))
 
 # Train PPO agent
-model = PPO("MlpPolicy", env, verbose=1, tensorboard_log="./ppo_log", device="auto"
+model = PPO("MlpPolicy", env, verbose=1, tensorboard_log="./ppo_log", device="auto",
     # ent_coef=0.01,  # Entropy coefficient to promote exploration
     # learning_rate=1e-4,  # Fine-tune learning rate
     # batch_size=1024,  # Adjust batch size for better exploration

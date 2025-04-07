@@ -36,11 +36,7 @@ class LearmArmEnv(gym.Env):
         #     high=np.array([1.57, 1.57, np.inf, np.inf, np.inf, np.inf]),  # Base, shoulder positions; velocities unbounded
         #     dtype=np.float32
         # )
-        self.observation_space = spaces.Box(
-            low=np.array([-np.inf, -np.inf, -np.inf, -np.inf]),  # x-y coordinates for both net and ball
-            high=np.array([np.inf, np.inf, np.inf, np.inf]),
-            dtype=np.float32
-        )
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(4,), dtype=np.float32)  # x-y coordinates for both net and ball
 
         self.base_joint_idx = None
         self.shoulder_joint_idx = None
@@ -116,18 +112,23 @@ class LearmArmEnv(gym.Env):
         self.step_counter += 1
 
         # Get current joint positions
-        curr_base_pos = pyB.getJointState(self.robot_id, self.base_joint_idx)[0]
-        curr_shoulder_pos = pyB.getJointState(self.robot_id, self.shoulder_joint_idx)[0]
+        curr_base_angle = pyB.getJointState(self.robot_id, self.base_joint_idx)[0]
+        curr_shoulder_angle = pyB.getJointState(self.robot_id, self.shoulder_joint_idx)[0]
         
         # Extract target joint angles from action and ensure they are within the valid joint limits
-        target_base_pos, target_shoulder_pos = action
-        target_base_pos = np.clip(target_base_pos, -1.57, 1.57)  # Base joint: [-1.57, 1.57]
-        target_shoulder_pos = np.clip(target_shoulder_pos, 0.0, 1.57)  # Shoulder joint: [0.0, 1.57]
+        target_base_angle, target_shoulder_angle = action
+        target_base_angle = np.clip(target_base_angle, -1.57, 1.57)  # Base joint: [-1.57, 1.57]
+        target_shoulder_angle = np.clip(target_shoulder_angle, 0.0, 1.57)  # Shoulder joint: [0.0, 1.57]
+
+        # # Exponential moving average for smoothing target joint positions
+        # alpha = 0.1  # Smoothing factor (between 0 and 1)
+        # target_base_angle = alpha * target_base_angle + (1 - alpha) * curr_base_angle
+        # target_shoulder_angle = alpha * target_shoulder_angle + (1 - alpha) * curr_shoulder_angle
 
         # Apply POSITION_CONTROL
-        pyB.setJointMotorControl2(self.robot_id, self.base_joint_idx, pyB.POSITION_CONTROL, targetPosition=target_base_pos)
-        pyB.setJointMotorControl2(self.robot_id, self.shoulder_joint_idx, pyB.POSITION_CONTROL, targetPosition=target_shoulder_pos)
-        pyB.setJointMotorControl2(self.robot_id, self.wrist_joint_idx, pyB.POSITION_CONTROL, targetPosition=target_shoulder_pos)
+        pyB.setJointMotorControl2(self.robot_id, self.base_joint_idx, pyB.POSITION_CONTROL, targetPosition=target_base_angle)
+        pyB.setJointMotorControl2(self.robot_id, self.shoulder_joint_idx, pyB.POSITION_CONTROL, targetPosition=target_shoulder_angle)
+        pyB.setJointMotorControl2(self.robot_id, self.wrist_joint_idx, pyB.POSITION_CONTROL, targetPosition=target_shoulder_angle)
 
         # Simulate one step
         pyB.stepSimulation()
@@ -145,7 +146,17 @@ class LearmArmEnv(gym.Env):
         # Success bonus for catching the ball
         if xy_dist <= 0.55:  # Define a catch range in the x-y plane
             reward = 1.0  # Catch success
-        
+
+        # # Reward for catching the ball and xy_dist minization
+        # if abs(ball_pos[2] - net_pos[2]) <= 0.1 and xy_dist <= 0.55:
+        #     reward = 1.0  # Catch success
+        # elif xy_dist <= 0.55:
+        #     reward = 0.5  # xy_dist minization
+
+        # # Add a smoothness penalty based on joint angle changes
+        # joint_smoothness_penalty = 0.1 * (abs(target_base_angle - curr_base_angle) + abs(target_shoulder_angle - curr_shoulder_angle))
+        # reward -= joint_smoothness_penalty
+
         # Return updated observation, reward, done flag, and truncated flag
         obs = self._get_obs()
         done = self.step_counter >= self.max_ep_steps

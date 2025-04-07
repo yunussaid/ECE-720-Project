@@ -12,13 +12,27 @@ for i in range(num_trials):
     caught = False
     for j in range(env.max_ep_steps):
         action, _ = model.predict(obs, deterministic=True)
-        if j % 100 == 0:
+        if j % 100 == 0: # Print action every 100 steps (optional)
             print("action: ", [round(action[0], 2), round(action[1], 2)])
+        
+        # Take a step in the environment
         obs, reward, terminated, truncated, _ = env.step(action)
         done = terminated or truncated
-        if reward == 1.0:
+        
+        # Get the net and ball positions from the environment
+        pyB = env._get_pybullet()  # Access the PyBullet client from the environment
+        ball_pos = pyB.getBasePositionAndOrientation(env.ball_id)[0]
+        net_pos = pyB.getLinkState(env.robot_id, env.net_joint_idx)[0]
+        
+        # Check if the ball is caught based on the condition (x-y distance + z distance)
+        xy_dist = np.linalg.norm(np.array(ball_pos[:2]) - np.array(net_pos[:2]))
+        if abs(ball_pos[2] - net_pos[2]) <= 0.1 and xy_dist <= 0.55:
             caught = True
-            # break
+            break
+
+    ball_xy = tuple(round(coord, 1) for coord in ball_pos[:2])
+    net_xy = tuple(round(coord, 1) for coord in net_pos[:2])
+    print("ball_xy:", ball_xy, "| net_xy:", net_xy, "| dist:", round(xy_dist, 1))
     print(f"Trial {i+1}: {'Caught ✅' if caught else 'Missed ❌'}")
     success_count += int(caught)
 
