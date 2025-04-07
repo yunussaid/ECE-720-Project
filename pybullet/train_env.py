@@ -1,0 +1,172 @@
+import gym
+import numpy as np
+import pybullet as pyB
+import pybullet_data
+from gym import spaces
+import time
+
+
+class LearmArmEnv(gym.Env):
+    def __init__(self, render=False):
+        super(LearmArmEnv, self).__init__()
+
+        self.render_mode = render
+        self.steps_per_sec = 240.0
+        self.time_step = 1.0 / self.steps_per_sec
+        self.physics_client_id = None
+
+        if self.render_mode:
+            self.physics_client_id = pyB.connect(pyB.GUI)
+        else:
+            self.physics_client_id = pyB.connect(pyB.DIRECT)
+
+        self.max_ep_length = 3 # seconds max per episode
+        self.max_ep_steps = int(self.max_ep_length * self.steps_per_sec) # setps max per episode
+        self.step_counter = 0
+
+        # Define action and observation space
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)                # Actions: 2 joint angle velocities (continuous)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(6,), dtype=np.float32)     # Observations: 2 joint positions + 2 joint velocities + 2 ball coordinates
+
+        self.base_joint_idx = None
+        self.shoulder_joint_idx = None
+        self.wrist_joint_idx = None
+        self.net_joint_idx = None
+
+        # Ball attributes
+        self.ball_id = None
+        self.ball_spawn_height = 5
+        self.ball_radius = 0.2
+        self.ball_noise_std = 0.1  # Adjust as needed
+
+        self._setup_simulation()
+
+
+    def _setup_simulation(self):
+        pyB.resetDebugVisualizerCamera(
+            cameraDistance=10,              # Zoom out by increasing distance
+            cameraYaw=90,                   # Rotate view left/right
+            cameraPitch=-85,                # Tilt up/down
+            cameraTargetPosition=[0, 0, 0]  # Focus point (usually center of your robot)
+        )
+        pyB.setAdditionalSearchPath(pybullet_data.getDataPath())
+        pyB.setGravity(0, 0, -9.8)
+        pyB.loadURDF("plane.urdf")
+
+        robot_start_pos = [0, 0, 0]
+        robot_start_orientation = pyB.getQuaternionFromEuler([0, 0, 0])
+        self.robot_id = pyB.loadURDF("learm_description/learm.urdf", robot_start_pos, robot_start_orientation, useFixedBase=True)
+
+        _joint_names = ["base_joint", "shoulder_joint", "wrist_joint"]
+        self.joint_indices = {
+            pyB.getJointInfo(self.robot_id, i)[1].decode("utf-8"): i for i in range(pyB.getNumJoints(self.robot_id))
+        }
+        self.base_joint_idx = self.joint_indices["base_joint"]
+        self.shoulder_joint_idx = self.joint_indices["shoulder_joint"]
+        self.wrist_joint_idx = self.joint_indices["wrist_joint"]
+        self.net_joint_idx = self.joint_indices["net_joint"]
+
+        ball_visual = pyB.createVisualShape(pyB.GEOM_SPHERE, radius=self.ball_radius, rgbaColor=[1, 0.5, 0, 1])
+        ball_collision = pyB.createCollisionShape(pyB.GEOM_SPHERE, radius=self.ball_radius)
+
+        r = np.random.uniform(1.0, 3.5)
+        theta = np.random.uniform(-np.pi/2, np.pi/2)
+        spawn_x = r * np.cos(theta)
+        spawn_y = r * np.sin(theta)
+        spawn_z = self.ball_spawn_height
+
+        self.ball_id = pyB.createMultiBody(
+            baseMass=0.01,
+            baseCollisionShapeIndex=ball_collision,
+            baseVisualShapeIndex=ball_visual,
+            basePosition=[spawn_x, spawn_y, spawn_z]
+        )
+
+        # self.draw_circle(1.0, [1, 0, 0])     # Inner red boundary
+        # self.draw_circle(3.5, [0, 1, 0])     # Outer green boundary
+
+    def reset(self):
+        self.step_counter = 0
+        pyB.resetSimulation()
+        self._setup_simulation()
+
+        # Reset joints
+        pyB.resetJointState(self.robot_id, self.base_joint_idx, 0)
+        pyB.resetJointState(self.robot_id, self.shoulder_joint_idx, 0)
+        pyB.resetJointState(self.robot_id, self.wrist_joint_idx, 0)
+
+        return self._get_obs()
+
+    def step(self, action):
+        self.step_counter += 1
+
+        # Get current joint positions
+        base_pos = pyB.getJointState(self.robot_id, self.base_joint_idx)[0]
+        shoulder_pos = pyB.getJointState(self.robot_id, self.shoulder_joint_idx)[0]
+        
+        # Get current joint positions and enforce joint limits
+        delta_base, delta_shoulder = action
+        new_base_pos = np.clip(base_pos + delta_base, -1.57, 1.57)
+        new_shoulder_pos = np.clip(shoulder_pos + delta_shoulder, 0.0, 1.57)
+
+        # Apply POSITION_CONTROL
+        pyB.setJointMotorControl2(self.robot_id, self.base_joint_idx, pyB.POSITION_CONTROL, targetPosition=new_base_pos)
+        pyB.setJointMotorControl2(self.robot_id, self.shoulder_joint_idx, pyB.POSITION_CONTROL, targetPosition=new_shoulder_pos)
+        pyB.setJointMotorControl2(self.robot_id, self.wrist_joint_idx, pyB.POSITION_CONTROL, targetPosition=new_shoulder_pos)
+
+        # Simulate one step
+        pyB.stepSimulation()
+        if self.render_mode:
+            time.sleep(self.time_step)
+
+        obs = self._get_obs()
+        reward = 0  # TODO: Define task-specific reward
+        done = self.step_counter >= self.max_ep_steps
+
+        return obs, reward, done, {}
+    
+    def _get_obs(self):
+        joint_base = pyB.getJointState(self.robot_id, self.base_joint_idx)
+        joint_shoulder = pyB.getJointState(self.robot_id, self.shoulder_joint_idx)
+
+        ball_pos = pyB.getBasePositionAndOrientation(self.ball_id)[0]
+        noisy_ball_x = ball_pos[0] + np.random.normal(0, self.ball_noise_std)
+        noisy_ball_y = ball_pos[1] + np.random.normal(0, self.ball_noise_std)
+
+        pos = [joint_base[0], joint_shoulder[0]]
+        vel = [joint_base[1], joint_shoulder[1]]
+        obs = np.array(pos + vel + [noisy_ball_x, noisy_ball_y], dtype=np.float32)
+        return obs
+
+    def _get_pybullet(self):
+        return pyB
+
+    def close(self):
+        pyB.disconnect()
+
+    def draw_circle(self, radius, color):
+        num_segments = 50
+        for i in range(num_segments):
+            theta1 = -np.pi/2 + (i / num_segments) * np.pi
+            theta2 = -np.pi/2 + ((i + 1) / num_segments) * np.pi
+            p1 = [radius * np.cos(theta1), radius * np.sin(theta1), 0.01]
+            p2 = [radius * np.cos(theta2), radius * np.sin(theta2), 0.01]
+            pyB.addUserDebugLine(p1, p2, lineColorRGB=color, lineWidth=1.5)
+
+def main():
+    print("Testing Trainable Environment ...")
+    env = LearmArmEnv(render=True)              # Create the simulation environment
+    # obs = env.reset()                         # Reset and initialize the simulation
+    delay_steps = 500
+
+    for _ in range(env.max_ep_steps + delay_steps):     # Loop for max simulation steps + desired delay steps
+        action = np.array([0.00, 1.00])                 # Move right + down smoothly
+        obs, reward, done, _ = env.step(action)         # Apply the action and step the sim
+        if done:
+            break
+
+    env.close()                                 # Disconnect from PyBullet when done
+
+
+if __name__ == "__main__":
+    main()
