@@ -3,7 +3,7 @@ import numpy as np
 import time
 
 def run_heuristic_trial(env, visualize=False):
-    obs = env.reset()
+    obs, _ = env.reset()
     ball_pos, net_pos, xy_dist = None, None, None
 
     caught = False

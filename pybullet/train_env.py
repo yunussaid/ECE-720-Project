@@ -1,9 +1,9 @@
-import gym
 import numpy as np
 import pybullet as pyB
 import pybullet_data
-from gym import spaces
 import time
+import gymnasium as gym
+from gymnasium import spaces
 
 
 class LearmArmEnv(gym.Env):
@@ -25,7 +25,11 @@ class LearmArmEnv(gym.Env):
         self.step_counter = 0
 
         # Define action and observation space
-        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)                # Actions: 2 joint angle velocities (continuous)
+        self.action_space = spaces.Box(
+            low=np.array([-1.57, 0.0]),  # Base joint: [-1.57, 1.57], Shoulder joint: [0.0, 1.57]
+            high=np.array([1.57, 1.57]),
+            dtype=np.float32
+        )
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(6,), dtype=np.float32)     # Observations: 2 joint positions + 2 joint velocities + 2 ball coordinates
 
         self.base_joint_idx = None
@@ -85,7 +89,8 @@ class LearmArmEnv(gym.Env):
         # self.draw_circle(1.0, [1, 0, 0])     # Inner red boundary
         # self.draw_circle(3.5, [0, 1, 0])     # Outer green boundary
 
-    def reset(self):
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
         self.step_counter = 0
         pyB.resetSimulation()
         self._setup_simulation()
@@ -95,35 +100,56 @@ class LearmArmEnv(gym.Env):
         pyB.resetJointState(self.robot_id, self.shoulder_joint_idx, 0)
         pyB.resetJointState(self.robot_id, self.wrist_joint_idx, 0)
 
-        return self._get_obs()
+        return self._get_obs(), {}
 
     def step(self, action):
         self.step_counter += 1
 
         # Get current joint positions
-        base_pos = pyB.getJointState(self.robot_id, self.base_joint_idx)[0]
-        shoulder_pos = pyB.getJointState(self.robot_id, self.shoulder_joint_idx)[0]
+        curr_base_pos = pyB.getJointState(self.robot_id, self.base_joint_idx)[0]
+        curr_shoulder_pos = pyB.getJointState(self.robot_id, self.shoulder_joint_idx)[0]
         
-        # Get current joint positions and enforce joint limits
-        delta_base, delta_shoulder = action
-        new_base_pos = np.clip(base_pos + delta_base, -1.57, 1.57)
-        new_shoulder_pos = np.clip(shoulder_pos + delta_shoulder, 0.0, 1.57)
+        # Extract target joint angles from action and ensure they are within the valid joint limits
+        target_base_pos, target_shoulder_pos = action
+        target_base_pos = np.clip(target_base_pos, -1.57, 1.57)  # Base joint: [-1.57, 1.57]
+        target_shoulder_pos = np.clip(target_shoulder_pos, 0.0, 1.57)  # Shoulder joint: [0.0, 1.57]
 
         # Apply POSITION_CONTROL
-        pyB.setJointMotorControl2(self.robot_id, self.base_joint_idx, pyB.POSITION_CONTROL, targetPosition=new_base_pos)
-        pyB.setJointMotorControl2(self.robot_id, self.shoulder_joint_idx, pyB.POSITION_CONTROL, targetPosition=new_shoulder_pos)
-        pyB.setJointMotorControl2(self.robot_id, self.wrist_joint_idx, pyB.POSITION_CONTROL, targetPosition=new_shoulder_pos)
+        pyB.setJointMotorControl2(self.robot_id, self.base_joint_idx, pyB.POSITION_CONTROL, targetPosition=target_base_pos)
+        pyB.setJointMotorControl2(self.robot_id, self.shoulder_joint_idx, pyB.POSITION_CONTROL, targetPosition=target_shoulder_pos)
+        pyB.setJointMotorControl2(self.robot_id, self.wrist_joint_idx, pyB.POSITION_CONTROL, targetPosition=target_shoulder_pos)
 
         # Simulate one step
         pyB.stepSimulation()
         if self.render_mode:
             time.sleep(self.time_step)
 
+        # Get net and ball positions
+        net_pos = pyB.getLinkState(self.robot_id, self.net_joint_idx)[0]
+        ball_pos = pyB.getBasePositionAndOrientation(self.ball_id)[0]
+        xy_dist = np.linalg.norm(np.array(ball_pos[:2]) - np.array(net_pos[:2]))
+
+        # Default reward is negative distance in x-y plane
+        reward = -xy_dist  # Base reward based on x-y distance
+
+        # Additional reward for shoulder joint movement
+        shoulder_penalty = 0.1 * abs(target_shoulder_pos - curr_shoulder_pos)  # Penalize lack of movement
+        reward -= shoulder_penalty
+
+        # Vertical distance-based reward (encourage depth control)
+        if abs(ball_pos[2] - net_pos[2]) <= 0.1:
+            reward += 0.5  # Encouraging successful alignment in z
+
+        # Success bonus for catching the ball
+        if abs(ball_pos[2] - net_pos[2]) <= 0.1 and xy_dist <= 0.55:
+            reward = 1.0  # Catch success
+        
+        # Return updated observation, reward, done flag, and truncated flag
         obs = self._get_obs()
-        reward = 0  # TODO: Define task-specific reward
         done = self.step_counter >= self.max_ep_steps
 
-        return obs, reward, done, {}
+        truncated = False  # We’re not using time-based or manual truncation yet
+        return obs, reward, done, truncated, {}
     
     def _get_obs(self):
         joint_base = pyB.getJointState(self.robot_id, self.base_joint_idx)
