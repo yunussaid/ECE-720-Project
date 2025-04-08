@@ -48,7 +48,7 @@ if not os.path.exists("results"):
     os.makedirs("results")  # Create the folder if it doesn't exist
 
 # Save results with the model's learning rate information in the filename
-filename = f'results/PPO_0003_results.csv'  # Use '0003' to match the learning rate in the filename
+filename = f'results/PPO_00003_results.csv'
 
 # Write the results to the CSV file
 with open(filename, mode='w', newline='') as file:
