@@ -45,9 +45,9 @@ class LearmArmEnv(gym.Env):
 
         # Ball attributes
         self.ball_id = None
-        self.ball_spawn_height = 5
-        self.ball_radius = 0.2
-        self.ball_noise_std = 0.1  # Adjust as needed
+        self.ball_spawn_height = 5  # 50 cm
+        self.ball_radius = 0.2      # 2 cm
+        self.ball_noise_std = 1     # 10 cm
 
         self._setup_simulation()
 
