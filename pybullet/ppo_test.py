@@ -7,7 +7,7 @@ import numpy as np
 num_trials = 1000
 visualize = True if num_trials <= 20 else False
 env = LearmArmEnv(render=visualize)
-model = PPO.load("ppo_learm_agent")
+model = PPO.load("./ppo_controllers/ppo_00003_1n")
 success_count = 0
 results = []
 
@@ -48,7 +48,7 @@ if not os.path.exists("results"):
     os.makedirs("results")  # Create the folder if it doesn't exist
 
 # Save results with the model's learning rate information in the filename
-filename = f'results/PPO_00003_results.csv'
+filename = f'results/PPO_00003_1n.csv'
 
 # Write the results to the CSV file
 with open(filename, mode='w', newline='') as file:

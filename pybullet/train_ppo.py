@@ -15,7 +15,8 @@ model = PPO("MlpPolicy", env, verbose=1, tensorboard_log="./ppo_log", device="au
     learning_rate=0.00003,  # Fine-tune learning rate
     # batch_size=1024,  # Adjust batch size for better exploration
 )
-model.learn(total_timesteps=300_000)  # adjust based on available time
+model.learn(total_timesteps=150_000, tb_log_name="PPO_00003_1n")
 
 # Save model
-model.save("ppo_learm_agent")
+# model.save("ppo_agent")
+model.save("./ppo_controllers/ppo_00003_1n")

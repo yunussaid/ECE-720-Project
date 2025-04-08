@@ -1,6 +1,44 @@
+import sys
 import matplotlib.pyplot as plt
 import csv
 
+
+trials = list(range(1, 1001))
+
+def get_success_count(filename):
+    success_count = []
+
+    with open(filename, mode='r') as file:
+        reader = csv.reader(file)
+        next(reader)
+        for row in reader:
+            success_count.append(int(row[1]))
+    
+    return success_count
+
+plt.xlabel('Episode Number')
+plt.ylabel('Cumulative Success Count')
+plt.title('Performance Over 1000 Episodes')
+plt.legend()
+plt.show()
+
+sys.exit()
+
+# Plot #1
+plt.plot(trials, get_success_count('heuristic_1_1n.csv'), label='heuristic_1')
+plt.plot(trials, get_success_count('heuristic_2_1n.csv'), label='heuristic_2')
+plt.plot(trials, get_success_count('heuristic_2_0n.csv'), label='heuristic_2_noiseless')
+
+# Plot #2
+plt.plot(trials, get_success_count('heuristic_2_1n.csv'), label='heuristic_2')
+plt.plot(trials, get_success_count('PPO_0003_1n.csv'), label='PPO_0003_1n')
+
+# Plot #3
+plt.plot(trials, get_success_count('heuristic_2_1n.csv'), label='heuristic_2')
+plt.plot(trials, get_success_count('PPO_0003_1n.csv'), label='PPO_0003_1n')
+plt.plot(trials, get_success_count('PPO_00003_1n.csv'), label='PPO_00003_1n')
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Load heuristic results (replace with the correct path to your heuristic results CSV)
 heuristic_trials = []
 heuristic_success_count = []
