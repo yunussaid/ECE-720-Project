@@ -1,0 +1,155 @@
+<?xml version="1.0"?>
+<robot name="learm">
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <mesh filename="learm_description/base.stl" scale="10 10 10"/>
+      </geometry>
+      <material name="black">
+        <color rgba="0 0 0 0.8"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+  <link name="shoulder_link">
+    <visual>
+      <geometry>
+        <mesh filename="learm_description/shoulder.stl" scale="10 10 10"/>
+      </geometry>
+      <material name="blue">
+        <color rgba="0 0.4 0.8 0.9"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+  <link name="humerus_link">
+    <visual>
+      <geometry>
+        <mesh filename="learm_description/humerus.stl" scale="10 10 10"/>
+      </geometry>
+      <material name="blue">
+        <color rgba="0 0.4 0.8 0.9"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+  <link name="forearm_link">
+    <visual>
+      <geometry>
+        <mesh filename="learm_description/forearm.stl" scale="10 10 10"/>
+      </geometry>
+      <material name="blue">
+        <color rgba="0 0.4 0.8 0.9"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+  <link name="wrist_link">
+    <visual>
+      <geometry>
+        <mesh filename="learm_description/wrist.stl" scale="10 10 10"/>
+      </geometry>
+      <material name="blue">
+        <color rgba="0 0.4 0.8 0.9"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+  <link name="net_link">
+    <visual>
+      <geometry>
+        <mesh filename="learm_description/net.stl" scale="0.01 0.01 0.01"/>
+      </geometry>
+      <material name="green">
+        <color rgba="0 0.5 0 0.9"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+
+  <joint name="base_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="shoulder_link"/>
+    <origin xyz="0 0 0.59" rpy="0 0 3.14159"/>
+    <axis xyz="0 0 -1"/>
+    <limit lower="-1.57" upper="1.57" effort="1000" velocity="0.5"/>
+  </joint>
+  <joint name="shoulder_joint" type="revolute">
+    <parent link="shoulder_link"/>
+    <child link="humerus_link"/>
+    <origin xyz="-0.10 0 0.28"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="0" upper="1.57" effort="1000" velocity="0.5"/>
+  </joint>
+  <joint name="elbow_joint" type="revolute">
+    <parent link="humerus_link"/>
+    <child link="forearm_link"/>
+    <origin xyz="0 0 1.05"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="0" upper="0" effort="1000" velocity="0"/>
+  </joint>
+  <joint name="wrist_joint" type="revolute">
+    <parent link="forearm_link"/>
+    <child link="wrist_link"/>
+    <origin xyz="0 0 0.90" rpy="0 0 3.14159"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="0" upper="1.57" effort="1000" velocity="0.5"/>
+  </joint>
+  <joint name="net_joint" type="fixed">
+    <parent link="wrist_link"/>
+    <child link="net_link"/>
+    <origin xyz="1.18 0 0.15" rpy="0 0 3.14159"/><!-- 118 = 75 + 10 + 24 + 9 -->
+  </joint>
+</robot>
+
+<!-- JOINT FORMAT EXPLANATION
+  1. <joint name="base_joint" type="revolute">
+  - joint name="base_joint": This assigns the name "base_joint" to the joint. It's a unique identifier for this specific connection.
+  - type="revolute": This specifies the type of joint. "Revolute" means the joint allows rotation around a single axis, like a hinge.
+
+    2. <parent link="base_link"/>
+    - This indicates the parent link of the joint. In this case, "base_link" is the link that this joint is connected to. The base link is the link that is the most base of the robot.
+
+    3. <child link="shoulder_link"/>
+    - This indicates the child link of the joint. In this case, "shoulder_link" is the link that moves relative to the parent link ("base_link") when the joint rotates.
+
+    4. <origin xyz="0 0 0.59"/>
+    - This defines the position of the joint's origin in the parent link's coordinate frame.
+    - xyz="0 0 0.059" means the joint's origin is located at:
+      - 0 meters along the X-axis of the "base_link".
+      - 0 meters along the Y-axis of the "base_link".
+      - 0.059 meters along the Z-axis of the "base_link".
+    - This is the location of the rotational center of the joint, relative to the parent link.
+
+    5. <axis xyz="0 0 1"/>
+    - This defines the axis of rotation for the joint, also in the parent link's coordinate frame.
+    - xyz="0 0 1" means the rotation occurs around the Z-axis of the "base_link".
+    - This means, that the shoulder link rotates around the vertical axis.
+
+    6. <limit lower="-1.57" upper="1.57" effort="1000" velocity="0.5"/>
+    - This specifies the limits of the joint's motion.
+    - lower="-1.57": The minimum allowed joint angle (in radians). -1.57 radians is approximately -90 degrees.
+    - upper="1.57": The maximum allowed joint angle (in radians). 1.57 radians is approximately 90 degrees.
+    - effort="1000": The maximum effort (torque) that the joint can exert.
+    - velocity="0.5": The maximum velocity (angular velocity) that the joint can achieve.
+
+  </joint>
+END of EXPLANATION -->
